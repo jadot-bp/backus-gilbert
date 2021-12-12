@@ -9,16 +9,16 @@ ZKCM::ZKCM() {
 }
 int ZKCM::zcall(int prec,int width, mpfr_t *A, mpfr_t *AInv, mpfr_t *D)
 {
-    zkcm_set_default_prec(prec);                //Set zkcm precision to that specified by bgv*
+    zkcm_set_default_prec(prec);        //Set zkcm precision to that specified by bgv*
 
-    double tol = pow(2,-prec);                  //Moore-Penrose tolerance
+    double tol = pow(2,-prec);  //Moore-Penrose tolerance
 
-    zkcm_matrix zA(width);                  //Initialise zkcm matrix to read in A
+    zkcm_matrix zA(width);      //Initialise zkcm matrix to read in A
     zkcm_matrix zAInv(width);
 
     for (int i=0; i<width; i++){
         for (int j=0; j<width;j++){
-            zA(i,j) = A[i+j*width];         //Load mpfr type into zkcm matrix
+            zA(i,j) = A[i+j*width];     //Load mpfr type into zkcm matrix
         }
     }
 
@@ -29,9 +29,9 @@ int ZKCM::zcall(int prec,int width, mpfr_t *A, mpfr_t *AInv, mpfr_t *D)
     zkcm_matrix zD(width);
     
     int result; 
-    result = SVD(zD,zU,zV,zA);          //Perform SVD on A (zA)
+    result = SVD(zD,zU,zV,zA);  //Perform SVD on A (zA)
 
-    zkcm_matrix zUh(width);              //Conjugate transpose
+    zkcm_matrix zUh(width);     //Conjugate transpose
 
     zUh = adjoint(zU);
 

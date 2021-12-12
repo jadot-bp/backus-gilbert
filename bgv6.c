@@ -212,11 +212,9 @@ int main(int argc, char *argv[]){
             WFunc(lmin,tau[i],tau[j],wfunc,work);
             mpfr_set(trapz,wfunc,MPFR_RNDF);
             mpfr_div_d(trapz,trapz,2.0,MPFR_RNDF);
-            //result += WFunc(lmin,w0,tau[i],tau[j])/2.0;
             for (int k=1; k<n; k++){
                 WFunc(lmin+(lmax-lmin)*k/n,tau[i],tau[j],wfunc,work);
                 mpfr_add(trapz,trapz,wfunc,MPFR_RNDF);
-                //result += WFunc(lmin+(lmax-lmin)*(double)k/n,w0,tau[i],tau[j]);
             }
             WFunc(lmax,tau[i],tau[j],wfunc,work);
             mpfr_set(work,wfunc,MPFR_RNDF);
@@ -224,8 +222,6 @@ int main(int argc, char *argv[]){
             mpfr_add(trapz,trapz,work,MPFR_RNDF);
             mpfr_mul_d(trapz,trapz,(lmax-lmin)/n,MPFR_RNDF);
            
-            //result += WFunc(lmax,w0,tau[i],tau[j])/2.0;
-            //result *= (lmax-lmin)/n;
             if (width == 1){
                 mpfr_mul_d(trapz,trapz,2.0,MPFR_RNDF);
             }
@@ -240,7 +236,6 @@ int main(int argc, char *argv[]){
     for (int i=0; i<t2-t1; i++){
         for (int j=0; j<t2-t1; j++){
             mpfr_mul_d(KWeight[i][j],KWeight[i][j],alpha,MPFR_RNDF);
-            //KWeight[i][j] = alpha*KWeight[i][j];
             mpfr_add_d(KWeight[i][j],KWeight[i][j],(1-alpha)*Cov[i][j],MPFR_RNDF);
         }
     }
@@ -248,21 +243,6 @@ int main(int argc, char *argv[]){
     clock_t kweight_end = clock();
 
     kernelgen_time += (double)(kweight_end-kweight_start)/(NCORES*CLOCKS_PER_SEC);
-
-    /* Printing */
-    /* 
-    { 
-        printf("Kernel weighting matrix:\n");
-
-        for (int i=0; i<Nt; i++){
-            for (int j=0; j<Nt; j++){
-                mpfr_out_str(stdout,10,0,KWeight[i][j],MPFR_RNDN);
-                putchar(',');
-            }
-            putchar('\n');
-        }
-    } 
-    */
 
     /* Invert weighting matrix */
             
@@ -293,6 +273,7 @@ int main(int argc, char *argv[]){
     inv_time += (double)(inv_end-inv_start)/(NCORES*CLOCKS_PER_SEC);
     
     /* Check quality of inversion */
+    /*
     {   
         mpfr_t Identity[t2-t1][t2-t1];    
         double score = 0.0;                 
@@ -315,14 +296,12 @@ int main(int argc, char *argv[]){
                 }
             }
         }
-
         score = score/((t2-t1)*(t2-t1));
-        //printf("score: %g\n",score);
-
         mpfr_clear(temp);
-
+    
     }//Inversion container 
-
+    */
+    mpfr_clear(temp);
     mpfr_clear(trapz);
     mpfr_clear(work);
     mpfr_clear(wfunc);
