@@ -14,8 +14,6 @@
     v6.0
     =================================================================
 */
-double a;
-double Mb;
 double wmin;
 double wmax;
 float scaling;
