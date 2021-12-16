@@ -21,7 +21,7 @@ double wmax;
 float scaling;
 int prec = 128;          //MPFR precision
 
-#define NCORES 4
+#define NCORES 4         //Number of cores for MPFR - currently unused
 
 void KFunc(double w, double tau, mpfr_t kfunc, mpfr_t factor);
 void WFunc(double w, double tau1, double tau2, mpfr_t wfunc, mpfr_t work);
@@ -583,21 +583,44 @@ int main(int argc, char *argv[]){
 }
 
 void KFunc(double w, double tau, mpfr_t kfunc, mpfr_t factor){
-    //Kernel function
+    /**
+     * Calculates the value of the kernel function
+     *
+     * (double) w       - energy/mass (of which the spectrum is a function)
+     * (double) t       - Euclidean time 
+     * (mpfr_t) kfunc   - empty variable which will contain the value of K(w,t)
+     *                    calculated by the function
+     * (mpfr_t) factor  - work variable used by the function during calculation
+     *
+     * returns: none (result contained in kfunc)
+     */
+
     mpfr_set_d(factor,-w*tau,MPFR_RNDF);
-    mpfr_exp(factor,factor,MPFR_RNDF);      //Calculate exp(factor)
-    if (scaling == 0.5){
-        mpfr_mul_d(factor,factor,sqrt(w-wmin),MPFR_RNDF); //Multiply by sqrt(w), zeroed at wmin (s01 channel scaling)
+    mpfr_exp(factor,factor,MPFR_RNDF);      
+    if (scaling == 0.5){        //Multiply by sqrt(w), zeroed at wmin (s01 channel scaling)
+        mpfr_mul_d(factor,factor,sqrt(w-wmin),MPFR_RNDF);
     }
-    if (scaling == 1.5){
-        mpfr_mul_d(factor,factor,sqrt(pow(w-wmin,3)),MPFR_RNDF); //Multiply by sqrt(w)**3, zeroed at wmin (p10 channel scaling)
+    if (scaling == 1.5){        //Multiply by sqrt(w)**3, zeroed at wmin (p10 channel scaling)
+        mpfr_mul_d(factor,factor,sqrt(pow(w-wmin,3)),MPFR_RNDF);
     }
     mpfr_set(kfunc,factor,MPFR_RNDF); 
 }
 
 void WFunc(double w, double tau1, double tau2, mpfr_t wfunc, mpfr_t work){
-    //Kernel width function
-    
+    /**
+     * Calculates the value of the width connection (the elements of the kernel
+     * width matrix).
+     *
+     * (double) w       - energy/mass (of which the spectrum is a function)
+     * (double) tau1    - Euclidean time for the first kernel function
+     * (double) tau2    - Euclidean time fot the second kernel function
+     * (mpfr_t) wfunc   - empty variable which will contain the value of the
+     *                    width connection calculated by the function
+     * (mpfr_t) work    - work variable used by the function during calculation
+     *
+     * returns: none (result contained in wfunc)
+     */
+
     KFunc(w,tau1,wfunc,work);
     KFunc(w,tau2,work,work);
     mpfr_mul(wfunc,wfunc,work,MPFR_RNDF);
