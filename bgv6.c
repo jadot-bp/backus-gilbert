@@ -25,18 +25,13 @@ void KFunc(double w, double tau, mpfr_t kfunc, mpfr_t factor);
 void WFunc(double w, double tau1, double tau2, mpfr_t wfunc, mpfr_t work);
 
 int main(int argc, char *argv[]){
+
     clock_t main_start = clock();
 
-
-    int Nt;                  //Number of temporal slices
-    int Ns;                  //Number of sample points for the Backus-Gilbert inverter
+    int Nt;                  //Number of time points in lattice (the temperature)
+    int Ns;                  //Number of sample slices to calculate omega
     int t1;                  //Initial Euclidean time
     int t2;                  //Final Euclidean time
-
-    double kernelgen_time = 0.0;
-    double inv_time = 0.0;
-    double coeff_time = 0.0;
-    double ests_time = 0.0;
 
     FILE *fptr;
     FILE *avgf;
@@ -238,14 +233,8 @@ int main(int argc, char *argv[]){
         }
     }
 
-    clock_t kweight_end = clock();
-
-    kernelgen_time += (double)(kweight_end-kweight_start)/(NCORES*CLOCKS_PER_SEC);
-
     /* Invert weighting matrix */
             
-    clock_t inv_start = clock();   
-
     mpfr_t KCopy[t2-t1][t2-t1];
     mpfr_t KInverse[t2-t1][t2-t1];
 
@@ -266,10 +255,6 @@ int main(int argc, char *argv[]){
 
     condition = fabsl(mpfr_get_ld(S[0],MPFR_RNDN)/mpfr_get_ld(S[t2-t1-1],MPFR_RNDN));         //Save condition number
 
-    clock_t inv_end = clock();
-
-    inv_time += (double)(inv_end-inv_start)/(NCORES*CLOCKS_PER_SEC);
-    
     /* Check quality of inversion */
     /*
     {   
@@ -360,8 +345,6 @@ int main(int argc, char *argv[]){
 
         double w0 = w0s[w];
 
-        clock_t kconst_start = clock();
-
         mpfr_t work;               //Work variable
         mpfr_t temp;               //Temporary (work) variable
         mpfr_t kfunc;              //Variable to capture KFunc output
@@ -375,12 +358,6 @@ int main(int argc, char *argv[]){
             KFunc(w0,tau[i],KConst[i],work);
             mpfr_mul_d(KConst[i],KConst[i],2.0,MPFR_RNDF);
         }
-
-        clock_t kconst_end = clock();
-
-        //kernelgen_time += (double)(kconst_end-kconst_start)/CLOCKS_PER_SEC;
-
-        clock_t coeff_start = clock();
 
         mpfr_t AvgCoeff[t2-t1];
         
@@ -443,14 +420,9 @@ int main(int argc, char *argv[]){
                 }
             }
         }
-        clock_t coeff_end = clock();
-
-        //coeff_time += (double)(coeff_end-coeff_start)/(NCORES*CLOCKS_PER_SEC);
 
         /* Adding spectral estimate */
 
-        clock_t ests_start = clock();
-        
         double rho_est = 0.0;
         
         for (int i=0; i<t2-t1; i++){
@@ -471,9 +443,6 @@ int main(int argc, char *argv[]){
             err += tmp*mpfr_get_d(AvgCoeff[i],MPFR_RNDN);
         }
         errs[w] = err;
-
-        clock_t ests_end = clock();
-        ests_time += (double)(ests_end-ests_start)/(NCORES*CLOCKS_PER_SEC);
 
         for (int i=0; i<t2-t1; i++){
             mpfr_clear(KConst[i]);
@@ -553,31 +522,18 @@ int main(int argc, char *argv[]){
             fprintf(avgc,"%s","\n");
         }      
     }
-    clock_t main_end = clock();
-
-    double main_time = (double)(main_end-main_start)/CLOCKS_PER_SEC;
 
     fprintf(fptr,"Error Mode:\t%d ([1] - Full, [0] - Partial)\n\n",emode);
     fprintf(fptr,"Scaling:\tw^%f\n\n",scaling);
     fprintf(fptr,"Start (t1):\t%d\n",t1);
     fprintf(fptr,"End (t2):\t%d\n\n",t2);
-    fprintf(fptr,"Clock Time:\t%gs\n",main_time);
-    fprintf(fptr,"Kernel Generation Time:\t%gs\n",kernelgen_time);
-    fprintf(fptr,"Inversion Time:\t%gs\n",inv_time);
-    fprintf(fptr,"Coefficient Calculation Time:\t%gs\n",coeff_time);
-    fprintf(fptr,"Spectral Estimation Time:\t%gs\n",ests_time);
 
     fclose(fptr);
     fclose(avgf);
 
     mpfr_free_cache();
-    /*
-    printf("\n\nTimings:\n========================\n");
-    printf("Total runtime: \t%fs\n",(double)(main_end-main_start)/CLOCKS_PER_SEC);
-    printf("--Matrix Inv.: \t%fs\n",(double)(inv_end-inv_start)/CLOCKS_PER_SEC);
-    printf("--Coeff Calc.: \t%fs\n",(double)(coeff_end-coeff_start)/CLOCKS_PER_SEC);
+
     return 0;
-    */
 }
 
 void KFunc(double w, double tau, mpfr_t kfunc, mpfr_t factor){
