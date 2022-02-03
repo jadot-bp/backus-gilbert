@@ -16,7 +16,7 @@
 */
 double wmin;
 double wmax;
-float scaling;
+float scaling;          
 int prec = 128;          //MPFR precision
 
 #define NCORES 4         //Number of cores for MPFR - currently unused
@@ -30,8 +30,8 @@ int main(int argc, char *argv[]){
 
     int Nt;                  //Number of time points in lattice (the temperature)
     int Ns;                  //Number of sample slices to calculate omega
-    int t1;                  //Initial Euclidean time
-    int t2;                  //Final Euclidean time
+    int t1;                  //Initial Euclidean time (inclusive)
+    int t2;                  //Final Euclidean time (exclusive)
 
     FILE *fptr;
     FILE *avgf;
@@ -39,6 +39,7 @@ int main(int argc, char *argv[]){
     avgf = fopen("out.avgf","w");
     fprintf(fptr,"%s","OUTPUT REPORT\n====================\n\n");
 
+    // Check validity of cmd line args
     if (argc == 1){
         printf("Argument Error: Must supply at least 1 command line argument! (debug mode)\n");
         return(22);
@@ -246,12 +247,15 @@ int main(int argc, char *argv[]){
         }
     }
 
-    mpfr_t S[t2-t1];           //Singular elements
+    mpfr_t S[t2-t1];           //Vector of singular elements
 
     for(int i=0; i<t2-t1; i++){
         mpfr_init2(S[i],prec);
     }
+
+    /* Start of C++ block */
     c_zcall(prec,t2-t1,*KCopy,*KInverse,S); //Pipe matrices to ZKCM interface
+    /* End of C++ block */
 
     condition = fabsl(mpfr_get_ld(S[0],MPFR_RNDN)/mpfr_get_ld(S[t2-t1-1],MPFR_RNDN));         //Save condition number
 
@@ -284,6 +288,7 @@ int main(int argc, char *argv[]){
     
     }//Inversion container 
     */
+
     mpfr_clear(temp);
     mpfr_clear(trapz);
     mpfr_clear(work);
@@ -450,6 +455,12 @@ int main(int argc, char *argv[]){
     }//End of w loop 
     }//End of pragma 
 
+    /* ====================================================================== 
+     * End of Inversion Block
+     *
+     * ======================================================================
+    */
+
     /* Output metadata */
     
     printf("%d;%d;%f;%f;%g;%d;%g;%g\n",Nt,Ns,wmin,wmax,alpha,prec,score,condition);
@@ -483,34 +494,15 @@ int main(int argc, char *argv[]){
         }
     }
     printf("\n");
-    
-    if (g==1){
 
-        mpfr_t kfunc2;
-        mpfr_t temp3;
-        mpfr_init2(kfunc2,prec);   
-        mpfr_init2(temp3,prec);
+    /* Output averaging coefficients */
+
+    if (g==1){
 
         FILE *avgc;
 
         avgc = fopen("out.avgc","w");        
 
-        /* Compute averaging function */
-        for (int n=0; n<=Ns; n++){
-            for (int i=0; i<=Ns; i++){
-                long double AvgFunc = 0.0;
-                for (int j=0; j<t2-t1; j++){
-                    //KFunc(w0s[i],tau[j],kfunc2,temp3);
-                    //AvgFunc += AvgCoeffs[n][j]*mpfr_get_ld(kfunc2,MPFR_RNDF);
-                    AvgFunc += AvgCoeffs[n][j]*expl(-w0s[i]*tau[j]);
-                }
-                fprintf(avgf,"%g",AvgFunc);
-                if(i!=Ns){
-                    fprintf(avgf,"%s",",");
-                }
-            }
-            fprintf(avgf,"%s","\n");
-        }
         /* Print Averaging Coefficients */
         for (int n=0; n<=Ns; n++){
             for(int i=0; i<t2-t1; i++){
@@ -522,6 +514,8 @@ int main(int argc, char *argv[]){
             fprintf(avgc,"%s","\n");
         }      
     }
+
+    /* Output miscellaneous info to report file */
 
     fprintf(fptr,"Error Mode:\t%d ([1] - Full, [0] - Partial)\n\n",emode);
     fprintf(fptr,"Scaling:\tw^%f\n\n",scaling);
