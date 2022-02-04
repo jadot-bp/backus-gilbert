@@ -34,9 +34,7 @@ int main(int argc, char *argv[]){
     int t2;                  //Final Euclidean time (exclusive)
 
     FILE *fptr;
-    FILE *avgf;
     fptr = fopen("out.report","w");
-    avgf = fopen("out.avgf","w");
     fprintf(fptr,"%s","OUTPUT REPORT\n====================\n\n");
 
     // Check validity of cmd line args
@@ -49,8 +47,8 @@ int main(int argc, char *argv[]){
         return(7); 
     }
 
-    int g = atoi(argv[1]);       //Debug mode for pre-calculating averaging functions
-    int width = 0;               //Apply unimodularity constriant (1) or use pure least-squares (0) -- Least squares has unregulated averaging functions
+    int g = atoi(argv[1]);       //Debug mode for outputting averaging coefficients
+    int width = 0;               //Backus-Gilbert spread (1) or Dirichlet least-squares (0)
     int emode = 1;               //Full error mode (1) or partial error mode (0) -- Full errors uses covariance matrix
 
     scanf("%d",&Nt);
@@ -75,6 +73,8 @@ int main(int argc, char *argv[]){
         alpha = atof(argv[4]);
         t1 = atoi(argv[5]);
         t2 = atoi(argv[6]);
+
+        //Check if t2 set to default to max
         if (t2 == -1){
             t2 = Nt;
         }
@@ -82,8 +82,8 @@ int main(int argc, char *argv[]){
 
     scaling = 0.5;               //Kernel rescaling - 0.5 for S-wave and 1.5 for P-wave
 
-    double lmin = wmin;
-    double lmax = 10.0;          //Integration range
+    double lmin = wmin;          //Start of integration range
+    double lmax = 10.0;          //End of integration range
     double n = 25*Ns;            //Integral precision for composite-trapezium rule
 
     double w0s[Ns+1];            //Frequency probe (proxy for position in energy space)
@@ -99,8 +99,6 @@ int main(int argc, char *argv[]){
     double rho[Ns+1];           //Spectral density estimate
     double errs[Ns+1];          //Spectral density error
     double widths[Ns+1];        //Spectral density frequency width/resolution
-    double score;        //Inversion deviation
-    double condition;     //Kernel weight matrix condition number
     
     /*
      * =======================================================================
@@ -167,19 +165,14 @@ int main(int argc, char *argv[]){
     mpfr_init2(temp,prec);
     mpfr_init2(wfunc,prec);
 
-    clock_t kweight_start = clock(); 
-
     for (int i=0; i<t2-t1; i++){       //Diagonal, equal-time elements
         
         mpfr_init2(KWeight[i][i],prec);
-        //mpfr_set_d(trapz,0.0,MPFR_RNDN);
         WFunc(lmin,tau[i],tau[i],wfunc,work);
         mpfr_set(trapz,wfunc,MPFR_RNDF);
         mpfr_div_d(trapz,trapz,2.0,MPFR_RNDF);
-        //result += WFunc(lmin,w0,tau[i],tau[i])/2.0;
 
         for (int k=1; k<n; k++){
-            //result += WFunc(lmin+(lmax-lmin)*(double)k/n,w0,tau[i],tau[i]);
             WFunc(lmin+(lmax-lmin)*k/n,tau[i],tau[i],wfunc,work),
             mpfr_add(trapz,trapz,wfunc,MPFR_RNDF);
         }
@@ -188,8 +181,6 @@ int main(int argc, char *argv[]){
         mpfr_div_d(work,work,2.0,MPFR_RNDF);
         mpfr_add(trapz,trapz,work,MPFR_RNDF);
 
-        //result += WFunc(lmax,w0,tau[i],tau[i])/2.0;
-        //result *= (lmax-lmin)/n;
         mpfr_mul_d(trapz,trapz,(lmax-lmin)/n,MPFR_RNDF);
 
         if (width == 1){
@@ -259,36 +250,6 @@ int main(int argc, char *argv[]){
 
     condition = fabsl(mpfr_get_ld(S[0],MPFR_RNDN)/mpfr_get_ld(S[t2-t1-1],MPFR_RNDN));         //Save condition number
 
-    /* Check quality of inversion */
-    /*
-    {   
-        mpfr_t Identity[t2-t1][t2-t1];    
-        double score = 0.0;                 
-        double dev;
-        //printf("KxK^-1:\n");
-        for (int i=0; i<t2-t1; i++){
-            for (int j=0; j<t2-t1; j++){
-                mpfr_init2(Identity[i][j],prec);
-                mpfr_set_d(Identity[i][j],0.0,MPFR_RNDN);
-                for (int k=0; k<t2-t1; k++){
-                    mpfr_mul(temp,KInverse[i][k],KWeight[k][j],MPFR_RNDF);
-                    mpfr_add(Identity[i][j],Identity[i][j],temp,MPFR_RNDF);
-                }
-                dev = mpfr_get_d(Identity[i][j],MPFR_RNDF); 
-                if(i==j){
-                    score += pow(1.0-dev,2);
-                }else{
-                    
-                    score += dev*dev;
-                }
-            }
-        }
-        score = score/((t2-t1)*(t2-t1));
-        mpfr_clear(temp);
-    
-    }//Inversion container 
-    */
-
     mpfr_clear(temp);
     mpfr_clear(trapz);
     mpfr_clear(work);
@@ -344,6 +305,7 @@ int main(int argc, char *argv[]){
         //int tid = omp_get_thread_num();
         //printf("ID: %d\n",tid);
         //fflush(stdout);
+        
         /* Constructing constraint vector */
 
         mpfr_t KConst[t2-t1];
