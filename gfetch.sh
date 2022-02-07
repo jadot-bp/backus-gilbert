@@ -42,7 +42,7 @@ echo "Collecting data..."
 confcount=0
 for confpath in $datapath
 do
-    echo -e "$Nt\n$channel\n$confpath\n" | ./consol >> "$tmpfile"
+    echo -e "$Nt\n$channel\n$confpath\n" | ./chread >> "$tmpfile"
     confcount=$((confcount+1))
 done
 
