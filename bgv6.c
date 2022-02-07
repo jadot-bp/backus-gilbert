@@ -26,8 +26,6 @@ void WFunc(double w, double tau1, double tau2, mpfr_t wfunc, mpfr_t work);
 
 int main(int argc, char *argv[]){
 
-    clock_t main_start = clock();
-
     int Nt;                  //Number of time points in lattice (the temperature)
     int Ns;                  //Number of sample slices to calculate omega
     int t1;                  //Initial Euclidean time (inclusive)
@@ -60,6 +58,7 @@ int main(int argc, char *argv[]){
     */
 
     double alpha;                //Whitening parameter
+    double condition;            //Condition of the weight matrix
 
     if (argc == 2){              //Set default parameters
         wmin = -0.1;              //Scanning range
@@ -425,7 +424,7 @@ int main(int argc, char *argv[]){
 
     /* Output metadata */
     
-    printf("%d;%d;%f;%f;%g;%d;%g;%g\n",Nt,Ns,wmin,wmax,alpha,prec,score,condition);
+    printf("%d;%d;%f;%f;%g;%d;%g\n",Nt,Ns,wmin,wmax,alpha,prec,condition);
 
     /* Output spectral density estimate */
     
@@ -485,7 +484,6 @@ int main(int argc, char *argv[]){
     fprintf(fptr,"End (t2):\t%d\n\n",t2);
 
     fclose(fptr);
-    fclose(avgf);
 
     mpfr_free_cache();
 
