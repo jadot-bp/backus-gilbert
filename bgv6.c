@@ -207,10 +207,6 @@ int main(int argc, char *argv[]){
             mpfr_add(trapz,trapz,work,MPFR_RNDF);
             mpfr_mul_d(trapz,trapz,(lmax-lmin)/n,MPFR_RNDF);
            
-            if (width == 1){
-                mpfr_mul_d(trapz,trapz,2.0,MPFR_RNDF);
-            }
-
             mpfr_set(KWeight[i][j],trapz,MPFR_RNDF);
             mpfr_set(KWeight[j][i],trapz,MPFR_RNDF);
         }
@@ -317,9 +313,10 @@ int main(int argc, char *argv[]){
         for (int i=0; i<t2-t1; i++){
             rho_est += mpfr_get_d(AvgCoeff[i],MPFR_RNDN)*G[i];
         }
+
         rho[w] = rho_est;
 
-        widths[w] = -1.0;
+        widths[w] = 1/w0;   //Oldenburg estimate of least-squares width
         
         /* Calculate error in spectral estimate */
 
@@ -333,9 +330,11 @@ int main(int argc, char *argv[]){
         }
         errs[w] = err;
 
+        //Explicitly flush KConst for next loop
         for (int i=0; i<t2-t1; i++){
             mpfr_clear(KConst[i]);
         }
+
     }//End of w loop 
     }//End of pragma wrapper
 
