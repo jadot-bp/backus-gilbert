@@ -1,6 +1,7 @@
 *.so
 *.dat
 tmp_*
+out.*
 seed
 backus
 covgen
