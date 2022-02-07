@@ -8,5 +8,4 @@ gcc "bgv6.c" -Wall -L. -linterface -lzcall -lstdc++ -lzkcm -lmpfr -lgmp -lgmpxx 
 gcc chread.c -o chread -lm
 gcc covgen.c -o covgen -lm
 gcc covgend.c -o covgend -lm
-gcc compress.c -o compress -lm
 echo "done."

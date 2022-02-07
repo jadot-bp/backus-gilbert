@@ -1,1 +1,8 @@
 *.so
+*.dat
+tmp_*
+seed
+backus
+covgen
+covgend
+chread
