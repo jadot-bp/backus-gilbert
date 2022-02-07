@@ -182,11 +182,6 @@ int main(int argc, char *argv[]){
         mpfr_add(trapz,trapz,work,MPFR_RNDF);
 
         mpfr_mul_d(trapz,trapz,(lmax-lmin)/n,MPFR_RNDF);
-
-        if (width == 1){
-            mpfr_mul_d(trapz,trapz,2.0,MPFR_RNDF);
-        }
-
         mpfr_set(KWeight[i][i],trapz,MPFR_RNDF);
     }
     for (int i=0; i<t2-t1; i++){       //Off-diagonal, time-symmetric elements
