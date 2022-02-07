@@ -4,7 +4,8 @@
 bash zcompile.sh
 
 # Compile scripts
-gcc "bgv6.c" -Wall -L. -linterface -lzcall -lstdc++ -lzkcm -lmpfr -lgmp -lgmpxx -o backus -fopenmp -lm -std=gnu99
+gcc "bgv6_leastsq.c" -Wall -L. -linterface -lzcall -lstdc++ -lzkcm -lmpfr -lgmp -lgmpxx -o backus_lsq -fopenmp -lm -std=gnu99
+gcc "bgv6_spread.c" -Wall -L. -linterface -lzcall -lstdc++ -lzkcm -lmpfr -lgmp -lgmpxx -o backus_s -fopenmp -lm -std=gnu99
 gcc chread.c -o chread -lm
 gcc covgen.c -o covgen -lm
 gcc covgend.c -o covgend -lm
