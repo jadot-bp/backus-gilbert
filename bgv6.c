@@ -46,7 +46,6 @@ int main(int argc, char *argv[]){
     }
 
     int g = atoi(argv[1]);       //Debug mode for outputting averaging coefficients
-    int width = 0;               //Backus-Gilbert spread (1) or Dirichlet least-squares (0)
     int emode = 1;               //Full error mode (1) or partial error mode (0) -- Full errors uses covariance matrix
 
     scanf("%d",&Nt);
@@ -123,7 +122,8 @@ int main(int argc, char *argv[]){
     }
 
     /* Parse Cov from input */
-    
+
+    //Read diagonal elements    
     for (int i=0; i<Nt; i++){
         double tmp;
         scanf("%lf",&tmp);
@@ -132,6 +132,7 @@ int main(int argc, char *argv[]){
         }
     }
 
+    //Construct off-diagonal components
     for (int i=0; i<Nt; i++){
         for (int j=i+1; j<Nt; j++){
             double tmp;
@@ -254,44 +255,6 @@ int main(int argc, char *argv[]){
     mpfr_clear(work);
     mpfr_clear(wfunc);
 
-    mpfr_t SConst[t2-t1];        //Backus-Gilbert spread constraint
-
-    if (width == 1){
-        /* Construct Backus-Gilbert spread constraint vector*/
-     
-        mpfr_t kfunc;              //Variable to capture KFunc output
-        mpfr_t trapz;              //Running trapezium sum
-        mpfr_t work;               //Work variable
- 
-        mpfr_init2(trapz,prec);
-        mpfr_init2(work,prec);
-        mpfr_init2(kfunc,prec);
-
-        for (int i=0; i<t2-t1; i++){
-            mpfr_init2(SConst[i],prec);
-            KFunc(lmin,tau[i],kfunc,work);
-            mpfr_set(trapz,kfunc,MPFR_RNDF);
-            mpfr_div_d(trapz,trapz,2.0,MPFR_RNDF);
-
-            for (int k=1; k<n; k++){
-                KFunc(lmin+(lmax-lmin)*k/n,tau[i],kfunc,work);
-                mpfr_add(trapz,trapz,kfunc,MPFR_RNDF);
-            }//Trapezium sum loop
-            KFunc(lmax,tau[i],kfunc,work);
-            mpfr_set(work,kfunc,MPFR_RNDF);
-            mpfr_div_d(work,work,2.0,MPFR_RNDF);
-            mpfr_add(trapz,trapz,work,MPFR_RNDF);
-            mpfr_mul_d(trapz,trapz,(lmax-lmin)/n,MPFR_RNDF);
-
-            mpfr_set(SConst[i],trapz,MPFR_RNDF);
-        }//SConst loop
-
-        mpfr_clear(kfunc);
-        mpfr_clear(trapz);
-        mpfr_clear(work);
-
-    }//Spread constraint
-
     /* Construct Dirichlet constraint vectors */
     {
     omp_set_num_threads(NCORES);
@@ -327,67 +290,27 @@ int main(int argc, char *argv[]){
 
         mpfr_t AvgCoeff[t2-t1];
         
-        if (width == 0){
-            /* Calculating AvgCoeff = K^-1 x C */
+        /* Calculating AvgCoeff = K^-1 x C */
             
-            mpfr_t temp2;
-            mpfr_init2(temp2,prec);
+        mpfr_t temp2;
+        mpfr_init2(temp2,prec);
 
-            for (int i=0; i<t2-t1; i++){
-                mpfr_init2(AvgCoeff[i],prec);
-                mpfr_set_d(AvgCoeff[i],0.0,MPFR_RNDN);
-                for (int j=0; j<t2-t1; j++){
-                    mpfr_mul(temp2,KInverse[i][j],KConst[j],MPFR_RNDF);
-                    mpfr_add(AvgCoeff[i],AvgCoeff[i],temp2,MPFR_RNDF);
-                }
+        for (int i=0; i<t2-t1; i++){
+            mpfr_init2(AvgCoeff[i],prec);
+            mpfr_set_d(AvgCoeff[i],0.0,MPFR_RNDN);
+            for (int j=0; j<t2-t1; j++){
+                mpfr_mul(temp2,KInverse[i][j],KConst[j],MPFR_RNDF);
+                mpfr_add(AvgCoeff[i],AvgCoeff[i],temp2,MPFR_RNDF);
             }
-            
-            if(g==1){
-                for (int i=0; i<t2-t1; i++){
-                    AvgCoeffs[w][i] = mpfr_get_ld(AvgCoeff[i],MPFR_RNDN);
-                }
-            }
-        }else{
-            /* Calculate AvgCoeff = (K^-1 x D)/(D^T K^-1 D) */
-            
-            mpfr_t DConst[t2-t1];
-            mpfr_t KInvD[t2-t1];
-            mpfr_t norm;
-            mpfr_t temp2;
-
-            mpfr_init2(temp2,prec);
-            mpfr_init2(norm,prec);
-            
-            mpfr_set_d(norm,0.0,MPFR_RNDN);
+        }
+        
+        if(g==1){
             for (int i=0; i<t2-t1; i++){
-                mpfr_init2(DConst[i],prec);
-                mpfr_init2(KInvD[i],prec);
-
-                mpfr_set(DConst[i],SConst[i],MPFR_RNDF);
-            }
-            for (int i=0; i<t2-t1; i++){
-                mpfr_set_d(KInvD[i],0.0,MPFR_RNDN);
-                for (int j=0; j<t2-t1; j++){
-                    mpfr_mul(temp2,KInverse[i][j],DConst[j],MPFR_RNDF);
-                    mpfr_add(KInvD[i],KInvD[i],temp2,MPFR_RNDF);
-                }
-                mpfr_mul(temp2,DConst[i],KInvD[i],MPFR_RNDF);
-                mpfr_add(norm,norm,temp2,MPFR_RNDF);
-            }//KInvC and norm loop
-            for (int i=0; i<t2-t1; i++){
-                mpfr_init2(AvgCoeff[i],prec);
-                mpfr_set_d(AvgCoeff[i],0.0,MPFR_RNDN);
-                mpfr_div(AvgCoeff[i],KInvD[i],norm,MPFR_RNDF);
-            }//AvgCoeff loop
-
-            if(g==1){
-                for (int i=0; i<t2-t1; i++){
-                    AvgCoeffs[w][i] = mpfr_get_ld(AvgCoeff[i],MPFR_RNDN);
-                }
+                AvgCoeffs[w][i] = mpfr_get_ld(AvgCoeff[i],MPFR_RNDN);
             }
         }
 
-        /* Adding spectral estimate */
+        /* Calculate spectral estimate */
 
         double rho_est = 0.0;
         
@@ -414,12 +337,13 @@ int main(int argc, char *argv[]){
             mpfr_clear(KConst[i]);
         }
     }//End of w loop 
-    }//End of pragma 
+    }//End of pragma wrapper
 
-    /* ====================================================================== 
-     * End of Inversion Block
-     *
-     * ======================================================================
+    /*
+     * =======================================================================
+                            End of Inversion Container
+                                    
+     * =======================================================================
     */
 
     /* Output metadata */
@@ -447,7 +371,11 @@ int main(int argc, char *argv[]){
     printf("\n");
     
     /* Output resolution estimate */
-    
+   
+    /* Note that this resolution output uses the reciprocal estimate [Oldenburg]
+       and as such is not as accurate as the resolution estimate for the Backus-
+       Gilbert spread function.
+    */ 
     for (int i=0; i<=Ns; i++){
         printf("%g",widths[i]);
         if (i!=Ns){
