@@ -3,7 +3,8 @@
 tmp_*
 out.*
 seed
-backus
+backus_s
+backus_lsq
 covgen
 covgend
 chread

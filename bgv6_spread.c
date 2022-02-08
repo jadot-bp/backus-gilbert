@@ -22,7 +22,7 @@ int prec = 128;          //MPFR precision
 #define NCORES 4         //Number of cores for MPFR - currently unused
 
 void KFunc(double w, double tau, mpfr_t kfunc, mpfr_t factor);
-void WFunc(double w, double tau1, double tau2, mpfr_t wfunc, mpfr_t work);
+void WFunc(double w, double w0, double tau1, double tau2, mpfr_t wfunc, mpfr_t work);
 
 int main(int argc, char *argv[]){
 
@@ -151,150 +151,179 @@ int main(int argc, char *argv[]){
 
     for (int i=t1; i<t2; i++){tau[i-t1] = (double)i;}   //Initialise lattice time vector
 
-    /* Constructing the kernel weighting matrix*/
+    /* Construct the constraint vector */
 
-    mpfr_t KWeight[t2-t1][t2-t1];
+    mpfr_t KConst[t2-t1];
 
-    mpfr_t wfunc;              //Variable to capture WFunc output
-    mpfr_t trapz;              //Running trapezium sum
     mpfr_t work;               //Work variable
-    mpfr_t temp;               //Temporary (work) variable
- 
-    mpfr_init2(trapz,prec);
+    mpfr_t trapz;              //Running trapezium sum
+    mpfr_t kfunc;              //Variable to capture KFunc output
+     
     mpfr_init2(work,prec);
-    mpfr_init2(temp,prec);
-    mpfr_init2(wfunc,prec);
+    mpfr_init2(trapz,prec);
+    mpfr_init2(kfunc,prec);
 
-    for (int i=0; i<t2-t1; i++){       //Diagonal, equal-time elements
-        
-        mpfr_init2(KWeight[i][i],prec);
-        WFunc(lmin,tau[i],tau[i],wfunc,work);
-        mpfr_set(trapz,wfunc,MPFR_RNDF);
+    for (int i=0; i<t2-t1; i++){
+        mpfr_init2(KConst[i],prec);
+        KFunc(lmin,tau[i],kfunc,work);
+        mpfr_set(trapz,kfunc,MPFR_RNDF);
         mpfr_div_d(trapz,trapz,2.0,MPFR_RNDF);
 
         for (int k=1; k<n; k++){
-            WFunc(lmin+(lmax-lmin)*k/n,tau[i],tau[i],wfunc,work),
-            mpfr_add(trapz,trapz,wfunc,MPFR_RNDF);
+            KFunc(lmin+(lmax-lmin)*k/n,tau[i],kfunc,work);
+            mpfr_add(trapz,trapz,kfunc,MPFR_RNDF);
         }
-        WFunc(lmax,tau[i],tau[i],wfunc,work);
-        mpfr_set(work,wfunc,MPFR_RNDF);
+        
+        KFunc(lmax,tau[i],kfunc,work);
+        mpfr_set(work,kfunc,MPFR_RNDF);
         mpfr_div_d(work,work,2.0,MPFR_RNDF);
         mpfr_add(trapz,trapz,work,MPFR_RNDF);
-
         mpfr_mul_d(trapz,trapz,(lmax-lmin)/n,MPFR_RNDF);
-        mpfr_set(KWeight[i][i],trapz,MPFR_RNDF);
-    }
-    for (int i=0; i<t2-t1; i++){       //Off-diagonal, time-symmetric elements
-        for (int j=i+1; j<t2-t1; j++){
-                            
-            mpfr_init2(KWeight[i][j],prec);
-            mpfr_init2(KWeight[j][i],prec);
-            WFunc(lmin,tau[i],tau[j],wfunc,work);
-            mpfr_set(trapz,wfunc,MPFR_RNDF);
-            mpfr_div_d(trapz,trapz,2.0,MPFR_RNDF);
-            for (int k=1; k<n; k++){
-                WFunc(lmin+(lmax-lmin)*k/n,tau[i],tau[j],wfunc,work);
-                mpfr_add(trapz,trapz,wfunc,MPFR_RNDF);
-            }
-            WFunc(lmax,tau[i],tau[j],wfunc,work);
-            mpfr_set(work,wfunc,MPFR_RNDF);
-            mpfr_div_d(work,work,2.0,MPFR_RNDF);
-            mpfr_add(trapz,trapz,work,MPFR_RNDF);
-            mpfr_mul_d(trapz,trapz,(lmax-lmin)/n,MPFR_RNDF);
-           
-            mpfr_set(KWeight[i][j],trapz,MPFR_RNDF);
-            mpfr_set(KWeight[j][i],trapz,MPFR_RNDF);
-        }
-    }
-    
-    /* Whitening kernel weighting matrix*/
-    
-    for (int i=0; i<t2-t1; i++){
-        for (int j=0; j<t2-t1; j++){
-            mpfr_mul_d(KWeight[i][j],KWeight[i][j],alpha,MPFR_RNDF);
-            mpfr_add_d(KWeight[i][j],KWeight[i][j],(1-alpha)*Cov[i][j],MPFR_RNDF);
-        }
+
+        mpfr_set(KConst[i],trapz,MPFR_RNDF);
     }
 
-    /* Invert weighting matrix */
-            
-    mpfr_t KCopy[t2-t1][t2-t1];
-    mpfr_t KInverse[t2-t1][t2-t1];
-
-    for(int i=0; i<t2-t1; i++){
-        for(int j=0; j<t2-t1; j++){
-            mpfr_init2(KCopy[i][j],prec);
-            mpfr_set(KCopy[i][j],KWeight[i][j],MPFR_RNDF);   //Initialise MPFR copy of KWeight for SVD
-            mpfr_init2(KInverse[i][j],prec);
-        }
-    }
-
-    mpfr_t S[t2-t1];           //Vector of singular elements
-
-    for(int i=0; i<t2-t1; i++){
-        mpfr_init2(S[i],prec);
-    }
-
-    /* Start of C++ block */
-    c_zcall(prec,t2-t1,*KCopy,*KInverse,S); //Pipe matrices to ZKCM interface
-    /* End of C++ block */
-
-    condition = fabsl(mpfr_get_ld(S[0],MPFR_RNDN)/mpfr_get_ld(S[t2-t1-1],MPFR_RNDN));         //Save condition number
-
-    mpfr_clear(temp);
+    mpfr_clear(kfunc);
     mpfr_clear(trapz);
     mpfr_clear(work);
-    mpfr_clear(wfunc);
 
-    /* Construct Dirichlet constraint vectors */
+   /* Construct Dirichlet constraint vectors */
     {
     omp_set_num_threads(NCORES);
     //printf("NUM THREADS: %d\tNUM CORES: %d\n", omp_get_num_threads(),NCORES);
 
-    #pragma omp parallel shared(G,Cov,rho,errs,widths,AvgCoeffs,KWeight)
+    #pragma omp parallel shared(G,Cov,rho,errs,widths,AvgCoeffs,KConst)
     #pragma omp for
     for (int w=0; w<=Ns; w++){    
-
-        //int tid = omp_get_thread_num();
-        //printf("ID: %d\n",tid);
-        //fflush(stdout);
         
-        /* Constructing constraint vector */
-
-        mpfr_t KConst[t2-t1];
-
         double w0 = w0s[w];
 
-        mpfr_t work;               //Work variable
-        mpfr_t temp;               //Temporary (work) variable
-        mpfr_t kfunc;              //Variable to capture KFunc output
-     
-        mpfr_init2(work,prec);
-        mpfr_init2(temp,prec);
-        mpfr_init2(kfunc,prec);
+        /* Constructing the kernel weighting matrix*/
 
-        for (int i=0; i<t2-t1; i++){
-            mpfr_init2(KConst[i],prec);
-            KFunc(w0,tau[i],KConst[i],work);
-            mpfr_mul_d(KConst[i],KConst[i],2.0,MPFR_RNDF);
+        mpfr_t KWeight[t2-t1][t2-t1];
+
+        mpfr_t wfunc;              //Variable to capture WFunc output
+        mpfr_t trapz;              //Running trapezium sum
+        mpfr_t work;               //Work variable
+ 
+        mpfr_init2(trapz,prec);
+        mpfr_init2(work,prec);
+        mpfr_init2(wfunc,prec);
+
+        for (int i=0; i<t2-t1; i++){       //Diagonal, equal-time elements
+            
+            mpfr_init2(KWeight[i][i],prec);
+            WFunc(lmin,w0,tau[i],tau[i],wfunc,work);
+            mpfr_set(trapz,wfunc,MPFR_RNDF);
+            mpfr_div_d(trapz,trapz,2.0,MPFR_RNDF);
+
+            for (int k=1; k<n; k++){
+                WFunc(lmin+(lmax-lmin)*k/n,w0,tau[i],tau[i],wfunc,work),
+                mpfr_add(trapz,trapz,wfunc,MPFR_RNDF);
+            }
+            WFunc(lmax,w0,tau[i],tau[i],wfunc,work);
+            mpfr_set(work,wfunc,MPFR_RNDF);
+            mpfr_div_d(work,work,2.0,MPFR_RNDF);
+            mpfr_add(trapz,trapz,work,MPFR_RNDF);
+
+            mpfr_mul_d(trapz,trapz,(lmax-lmin)/n,MPFR_RNDF);
+            mpfr_set(KWeight[i][i],trapz,MPFR_RNDF);
         }
 
-        mpfr_t AvgCoeff[t2-t1];
-        
-        /* Calculating AvgCoeff = K^-1 x C */
-            
-        mpfr_t temp2;
-        mpfr_init2(temp2,prec);
+        for (int i=0; i<t2-t1; i++){       //Off-diagonal, time-symmetric elements
+            for (int j=i+1; j<t2-t1; j++){
+                                
+                mpfr_init2(KWeight[i][j],prec);
+                mpfr_init2(KWeight[j][i],prec);
+                WFunc(lmin,w0,tau[i],tau[j],wfunc,work);
+                mpfr_set(trapz,wfunc,MPFR_RNDF);
+                mpfr_div_d(trapz,trapz,2.0,MPFR_RNDF);
 
-        for (int i=0; i<t2-t1; i++){
-            mpfr_init2(AvgCoeff[i],prec);
-            mpfr_set_d(AvgCoeff[i],0.0,MPFR_RNDN);
-            for (int j=0; j<t2-t1; j++){
-                mpfr_mul(temp2,KInverse[i][j],KConst[j],MPFR_RNDF);
-                mpfr_add(AvgCoeff[i],AvgCoeff[i],temp2,MPFR_RNDF);
+                for (int k=1; k<n; k++){
+                    WFunc(lmin+(lmax-lmin)*k/n,w0,tau[i],tau[j],wfunc,work);
+                    mpfr_add(trapz,trapz,wfunc,MPFR_RNDF);
+                }
+
+                WFunc(lmax,w0,tau[i],tau[j],wfunc,work);
+                mpfr_set(work,wfunc,MPFR_RNDF);
+                mpfr_div_d(work,work,2.0,MPFR_RNDF);
+                mpfr_add(trapz,trapz,work,MPFR_RNDF);
+                mpfr_mul_d(trapz,trapz,(lmax-lmin)/n,MPFR_RNDF);
+               
+                mpfr_set(KWeight[i][j],trapz,MPFR_RNDF);
+                mpfr_set(KWeight[j][i],trapz,MPFR_RNDF);
             }
         }
         
+        /* Whitening kernel weighting matrix*/
+        
+        for (int i=0; i<t2-t1; i++){
+            for (int j=0; j<t2-t1; j++){
+                mpfr_mul_d(KWeight[i][j],KWeight[i][j],alpha,MPFR_RNDF);
+                mpfr_add_d(KWeight[i][j],KWeight[i][j],(1-alpha)*Cov[i][j],MPFR_RNDF);
+            }
+        }
+
+        /* Invert weighting matrix */
+                
+        mpfr_t KCopy[t2-t1][t2-t1];
+        mpfr_t KInverse[t2-t1][t2-t1];
+
+        for(int i=0; i<t2-t1; i++){
+            for(int j=0; j<t2-t1; j++){
+                mpfr_init2(KCopy[i][j],prec);
+                mpfr_set(KCopy[i][j],KWeight[i][j],MPFR_RNDF);   //Initialise MPFR copy of KWeight for SVD
+                mpfr_init2(KInverse[i][j],prec);
+            }
+        }
+
+        mpfr_t S[t2-t1];           //Vector of singular elements
+
+        for(int i=0; i<t2-t1; i++){
+            mpfr_init2(S[i],prec);
+        }
+
+        /* Start of C++ block */
+        c_zcall(prec,t2-t1,*KCopy,*KInverse,S); //Pipe matrices to ZKCM interface
+        /* End of C++ block */
+
+        condition = fabsl(mpfr_get_ld(S[0],MPFR_RNDN)/mpfr_get_ld(S[t2-t1-1],MPFR_RNDN));         //Save condition number
+
+        mpfr_clear(trapz);
+        mpfr_clear(work);
+        mpfr_clear(wfunc);
+
+        /* Calculating AvgCoeff = K^-1 x C / C^T x K^-1 x C */
+        
+        mpfr_t AvgCoeff[t2-t1];
+        mpfr_t KInvC[t2-t1];   
+
+        mpfr_t temp;
+        mpfr_t norm;
+
+        mpfr_init2(temp,prec);
+        mpfr_init2(norm,prec);
+
+        mpfr_set_d(norm,0.0,MPFR_RNDN);
+
+        for (int i=0; i<t2-t1; i++){
+            mpfr_init2(KInvC[i],prec);
+            mpfr_set_d(KInvC[i],0.0,MPFR_RNDN);
+
+            for (int j=0; j<t2-t1; j++){
+                mpfr_mul(temp,KInverse[i][j],KConst[j],MPFR_RNDF);
+                mpfr_add(KInvC[i],KInvC[i],temp,MPFR_RNDF);
+            }
+            //Calculate norm contribution (C^T x K^-1 x C)
+            mpfr_mul(temp,KConst[i],KInvC[i],MPFR_RNDF);
+            mpfr_add(norm,norm,temp,MPFR_RNDF);
+        }
+
+        for (int i=0; i<Nt; i++){
+            mpfr_init2(AvgCoeff[i],prec);
+            mpfr_div(AvgCoeff[i],KInvC[i],norm,MPFR_RNDF);
+        }
+
         if(g==1){
             for (int i=0; i<t2-t1; i++){
                 AvgCoeffs[w][i] = mpfr_get_ld(AvgCoeff[i],MPFR_RNDN);
@@ -311,7 +340,9 @@ int main(int argc, char *argv[]){
 
         rho[w] = rho_est;
 
-        widths[w] = 1/w0;   //Oldenburg estimate of least-squares width
+        /* Calculate resolution width */
+
+        widths[w] = 0.0;   //Oldenburg estimate of least-squares width
         
         /* Calculate error in spectral estimate */
 
@@ -325,9 +356,12 @@ int main(int argc, char *argv[]){
         }
         errs[w] = err;
 
-        //Explicitly flush KConst for next loop
+        //Explicitly flush KWeight, KInverse for next loop
         for (int i=0; i<t2-t1; i++){
-            mpfr_clear(KConst[i]);
+            for (int j=0; j<t2-t1; j++){
+                mpfr_clear(KWeight[i][j]);
+                mpfr_clear(KInverse[i][j]);
+            }
         }
 
     }//End of w loop 
@@ -436,12 +470,13 @@ void KFunc(double w, double tau, mpfr_t kfunc, mpfr_t factor){
     mpfr_set(kfunc,factor,MPFR_RNDF); 
 }
 
-void WFunc(double w, double tau1, double tau2, mpfr_t wfunc, mpfr_t work){
+void WFunc(double w, double w0, double tau1, double tau2, mpfr_t wfunc, mpfr_t work){
     /**
      * Calculates the value of the width connection (the elements of the kernel
      * width matrix).
      *
      * (double) w       - energy/mass (of which the spectrum is a function)
+     * (double) w0      - energy/mass sample point for localisation term
      * (double) tau1    - Euclidean time for the first kernel function
      * (double) tau2    - Euclidean time fot the second kernel function
      * (mpfr_t) wfunc   - empty variable which will contain the value of the
@@ -454,5 +489,6 @@ void WFunc(double w, double tau1, double tau2, mpfr_t wfunc, mpfr_t work){
     KFunc(w,tau1,wfunc,work);
     KFunc(w,tau2,work,work);
     mpfr_mul(wfunc,wfunc,work,MPFR_RNDF);
-    //mpfr_mul_d(wfunc,wfunc,24.0,MPFR_RNDF);
+    double factor = 24.0 * pow(w-w0,2);
+    mpfr_mul_d(wfunc,wfunc,factor,MPFR_RNDF);
 }
