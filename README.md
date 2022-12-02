@@ -53,7 +53,7 @@ If libinterface.so is not in the listed path or the listed path is empty, link t
 
 ```bash
   cd backus-gilbert
-  export $LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD"
+  export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD"
 ```
 
 ## Support
