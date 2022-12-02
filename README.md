@@ -34,6 +34,28 @@ Compile the base scripts along with the ZKCM connector
   bash zcompile.sh
 ```
 Done!
+
+## Common Issues:
+
+If you encounter the error
+
+```bash
+  ./backus_lsq: error while loading shared libraries: libinterface.so: cannot open shared object file: No such file or directory
+```
+
+then you have not correctly set the library path. Check to see if `libinterface.so` is in the linked library path
+
+```bash
+  echo $LD_LIBRARY_PATH
+```
+
+If libinterface.so is not in the listed path or the listed path is empty, link the path using the following:
+
+```bash
+  cd backus-gilbert
+  export $LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD"
+```
+
 ## Support
 
 For support, email Ben Page at 900727@swansea.ac.uk.
