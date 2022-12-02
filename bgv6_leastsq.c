@@ -397,7 +397,25 @@ int main(int argc, char *argv[]){
             fprintf(avgc,"%s","\n");
         }      
     }
+    
+    /* Print Inverse of Kernel Weight Matrix */
+    if (g==2){
 
+        FILE *kinv;
+
+        kinv = fopen("out.kinv","w");        
+
+        /* Print Averaging Coefficients */
+        for (int i=0; i<t2-t1; i++){
+            for(int j=0; j<t2-t1; j++){
+                fprintf(kinv,"%0.16Lf",mpfr_get_ld(KInverse[i][j],MPFR_RNDN));
+                if(j<t2-t1-1){
+                    fprintf(kinv,"%s",",");
+                }
+            }
+            fprintf(kinv,"%s","\n");
+        }      
+    }
     /* Output miscellaneous info to report file */
 
     fprintf(fptr,"Error Mode:\t%d ([1] - Full, [0] - Partial)\n\n",emode);
