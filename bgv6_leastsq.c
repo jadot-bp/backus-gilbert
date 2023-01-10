@@ -47,6 +47,7 @@ int main(int argc, char *argv[]){
 
     int g = atoi(argv[1]);       //Debug mode for outputting averaging coefficients
     int emode = 1;               //Full error mode (1) or partial error mode (0) -- Full errors uses covariance matrix
+    int tikh = 1;                //Tikhonov whitening mode (1) or covariance whitening mode (0)
 
     scanf("%d",&Nt);
     scanf("%d",&Ns);
@@ -120,33 +121,33 @@ int main(int argc, char *argv[]){
             G[i-t1] = tmp;
         }
     }
+    if(tikh==0){
+        /* Parse Cov from input */
 
-    /* Parse Cov from input */
-
-    //Read diagonal elements    
-    for (int i=0; i<Nt; i++){
-        double tmp;
-        scanf("%lf",&tmp);
-        if (i >= t1 && i < t2){
-            Cov[i-t1][i-t1] = tmp;
-        }
-    }
-
-    //Construct off-diagonal components
-    for (int i=0; i<Nt; i++){
-        for (int j=i+1; j<Nt; j++){
+        //Read diagonal elements    
+        for (int i=0; i<Nt; i++){
             double tmp;
             scanf("%lf",&tmp);
             if (i >= t1 && i < t2){
-                if(emode==1){
-                    Cov[i-t1][j-t1] = Cov[j-t1][i-t1] = tmp;
-                }else{
-                    Cov[i-t1][j-t1] = Cov[j-t1][i-t1] = 0.0;
-                }
+                Cov[i-t1][i-t1] = tmp;
             }
-        }   
-    }
+        }
 
+        //Construct off-diagonal components
+        for (int i=0; i<Nt; i++){
+            for (int j=i+1; j<Nt; j++){
+                double tmp;
+                scanf("%lf",&tmp);
+                if (i >= t1 && i < t2){
+                    if(emode==1){
+                        Cov[i-t1][j-t1] = Cov[j-t1][i-t1] = tmp;
+                    }else{
+                        Cov[i-t1][j-t1] = Cov[j-t1][i-t1] = 0.0;
+                    }
+                }
+            }   
+        }
+    }
     /* Construct Euclidean time vector */
 
     for (int i=t1; i<t2; i++){tau[i-t1] = (double)i;}   //Initialise lattice time vector
@@ -208,11 +209,17 @@ int main(int argc, char *argv[]){
     }
     
     /* Whitening kernel weighting matrix*/
-    
-    for (int i=0; i<t2-t1; i++){
-        for (int j=0; j<t2-t1; j++){
-            mpfr_mul_d(KWeight[i][j],KWeight[i][j],alpha,MPFR_RNDF);
-            mpfr_add_d(KWeight[i][j],KWeight[i][j],(1-alpha)*Cov[i][j],MPFR_RNDF);
+    if(tikh==1){
+        for (int i=0; i<t2-t1; i++){
+            mpfr_add_d(KWeight[i][i],KWeight[i][i],alpha,MPFR_RNDF);
+        }
+    }
+    else{ 
+        for (int i=0; i<t2-t1; i++){
+            for (int j=0; j<t2-t1; j++){
+                mpfr_mul_d(KWeight[i][j],KWeight[i][j],alpha,MPFR_RNDF);
+                mpfr_add_d(KWeight[i][j],KWeight[i][j],(1-alpha)*Cov[i][j],MPFR_RNDF);
+            }
         }
     }
 
