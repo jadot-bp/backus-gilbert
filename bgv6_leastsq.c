@@ -47,6 +47,7 @@ int main(int argc, char *argv[]){
 
     int g = atoi(argv[1]);       //Debug mode for outputting averaging coefficients
     int emode = 1;               //Full error mode (1) or partial error mode (0) -- Full errors uses covariance matrix
+    int tikh = 1;                //Tikhonov whitening mode (1) or covariance whitening mode (0)
 
     scanf("%d",&Nt);
     scanf("%d",&Ns);
@@ -57,7 +58,6 @@ int main(int argc, char *argv[]){
     */
 
     double alpha;                //Whitening parameter
-    double condition;            //Condition of the weight matrix
 
     if (argc == 2){              //Set default parameters
         wmin = -0.1;              //Scanning range
@@ -84,6 +84,7 @@ int main(int argc, char *argv[]){
     double lmax = 10.0;          //End of integration range
     double n = 25*Ns;            //Integral precision for composite-trapezium rule
 
+    double condition;
     double w0s[Ns+1];            //Frequency probe (proxy for position in energy space)
     double tau[t2-t1];           //Temporal position 
 
@@ -92,11 +93,7 @@ int main(int argc, char *argv[]){
     //double AvgCoeff[Nt];    //Averaging coefficient vector
     double AvgCoeffs[Ns+1][t2-t1];
 
-    double G[t2-t1];               //Correlator data
     double Cov[t2-t1][t2-t1];             //Correlator covariance
-    double rho[Ns+1];           //Spectral density estimate
-    double errs[Ns+1];          //Spectral density error
-    double widths[Ns+1];        //Spectral density frequency width/resolution
     
     /*
      * =======================================================================
@@ -111,40 +108,32 @@ int main(int argc, char *argv[]){
 
     for (int i=0; i<=Ns; i++){w0s[i] = wmin+i*delta;}
     
-    /* Parse G from input*/ 
+    if(tikh==0){
+        /* Parse Cov from input */
 
-    for (int i=0; i<Nt; i++){
-        double tmp;
-        scanf("%lf",&tmp);
-        if (i >= t1 && i < t2){
-            G[i-t1] = tmp;
-        }
-    }
-
-    /* Parse Cov from input */
-
-    //Read diagonal elements    
-    for (int i=0; i<Nt; i++){
-        double tmp;
-        scanf("%lf",&tmp);
-        if (i >= t1 && i < t2){
-            Cov[i-t1][i-t1] = tmp;
-        }
-    }
-
-    //Construct off-diagonal components
-    for (int i=0; i<Nt; i++){
-        for (int j=i+1; j<Nt; j++){
+        //Read diagonal elements    
+        for (int i=0; i<Nt; i++){
             double tmp;
             scanf("%lf",&tmp);
             if (i >= t1 && i < t2){
-                if(emode==1){
-                    Cov[i-t1][j-t1] = Cov[j-t1][i-t1] = tmp;
-                }else{
-                    Cov[i-t1][j-t1] = Cov[j-t1][i-t1] = 0.0;
-                }
+                Cov[i-t1][i-t1] = tmp;
             }
-        }   
+        }
+
+        //Construct off-diagonal components
+        for (int i=0; i<Nt; i++){
+            for (int j=i+1; j<Nt; j++){
+                double tmp;
+                scanf("%lf",&tmp);
+                if (i >= t1 && i < t2){
+                    if(emode==1){
+                        Cov[i-t1][j-t1] = Cov[j-t1][i-t1] = tmp;
+                    }else{
+                        Cov[i-t1][j-t1] = Cov[j-t1][i-t1] = 0.0;
+                    }
+                }
+            }   
+        }
     }
 
     /* Construct Euclidean time vector */
@@ -209,10 +198,16 @@ int main(int argc, char *argv[]){
     
     /* Whitening kernel weighting matrix*/
     
-    for (int i=0; i<t2-t1; i++){
-        for (int j=0; j<t2-t1; j++){
-            mpfr_mul_d(KWeight[i][j],KWeight[i][j],alpha,MPFR_RNDF);
-            mpfr_add_d(KWeight[i][j],KWeight[i][j],(1-alpha)*Cov[i][j],MPFR_RNDF);
+    if(tikh==1){
+        for (int i=0; i<t2-t1; i++){
+            mpfr_add_d(KWeight[i][i],KWeight[i][i],alpha,MPFR_RNDF);
+        }
+    }else{
+        for (int i=0; i<t2-t1; i++){
+            for (int j=0; j<t2-t1; j++){
+                mpfr_mul_d(KWeight[i][j],KWeight[i][j],alpha,MPFR_RNDF);
+                mpfr_add_d(KWeight[i][j],KWeight[i][j],(1-alpha)*Cov[i][j],MPFR_RNDF);
+            }
         }
     }
 
@@ -246,137 +241,12 @@ int main(int argc, char *argv[]){
     mpfr_clear(work);
     mpfr_clear(wfunc);
 
-    /* Construct Dirichlet constraint vectors */
-    {
-    omp_set_num_threads(NCORES);
-    //printf("NUM THREADS: %d\tNUM CORES: %d\n", omp_get_num_threads(),NCORES);
-
-    #pragma omp parallel shared(G,Cov,rho,errs,widths,AvgCoeffs,KWeight)
-    #pragma omp for
-    for (int w=0; w<=Ns; w++){    
-
-        //int tid = omp_get_thread_num();
-        //printf("ID: %d\n",tid);
-        //fflush(stdout);
-        
-        /* Constructing constraint vector */
-
-        mpfr_t KConst[t2-t1];
-
-        double w0 = w0s[w];
-
-        mpfr_t work;               //Work variable
-        mpfr_t temp;               //Temporary (work) variable
-        mpfr_t kfunc;              //Variable to capture KFunc output
-     
-        mpfr_init2(work,prec);
-        mpfr_init2(temp,prec);
-        mpfr_init2(kfunc,prec);
-
-        for (int i=0; i<t2-t1; i++){
-            mpfr_init2(KConst[i],prec);
-            KFunc(w0,tau[i],KConst[i],work);
-            mpfr_mul_d(KConst[i],KConst[i],2.0,MPFR_RNDF);
-        }
-
-        mpfr_t AvgCoeff[t2-t1];
-        
-        /* Calculating AvgCoeff = K^-1 x C */
-            
-        mpfr_t temp2;
-        mpfr_init2(temp2,prec);
-
-        for (int i=0; i<t2-t1; i++){
-            mpfr_init2(AvgCoeff[i],prec);
-            mpfr_set_d(AvgCoeff[i],0.0,MPFR_RNDN);
-            for (int j=0; j<t2-t1; j++){
-                mpfr_mul(temp2,KInverse[i][j],KConst[j],MPFR_RNDF);
-                mpfr_add(AvgCoeff[i],AvgCoeff[i],temp2,MPFR_RNDF);
-            }
-        }
-        
-        if(g==1){
-            for (int i=0; i<t2-t1; i++){
-                AvgCoeffs[w][i] = mpfr_get_ld(AvgCoeff[i],MPFR_RNDN);
-            }
-        }
-
-        /* Calculate spectral estimate */
-
-        double rho_est = 0.0;
-        
-        for (int i=0; i<t2-t1; i++){
-            rho_est += mpfr_get_d(AvgCoeff[i],MPFR_RNDN)*G[i];
-        }
-
-        rho[w] = rho_est;
-
-        widths[w] = 1/w0;   //Oldenburg estimate of least-squares width
-        
-        /* Calculate error in spectral estimate */
-
-        double err = 0.0;
-        for (int i=0; i<t2-t1; i++){
-            double tmp = 0.0;
-            for (int j=0; j<t2-t1; j++){
-                tmp += Cov[i][j]*mpfr_get_d(AvgCoeff[j],MPFR_RNDN);
-            }
-            err += tmp*mpfr_get_d(AvgCoeff[i],MPFR_RNDN);
-        }
-        errs[w] = err;
-
-        //Explicitly flush KConst for next loop
-        for (int i=0; i<t2-t1; i++){
-            mpfr_clear(KConst[i]);
-        }
-
-    }//End of w loop 
-    }//End of pragma wrapper
-
     /*
      * =======================================================================
                             End of Inversion Container
                                     
      * =======================================================================
     */
-
-    /* Output metadata */
-    
-    printf("%d;%d;%f;%f;%g;%d;%g\n",Nt,Ns,wmin,wmax,alpha,prec,condition);
-
-    /* Output spectral density estimate */
-    
-    for (int i=0; i<=Ns; i++){
-        printf("%g",rho[i]);
-        if (i!=Ns){
-            printf(",");
-        }    
-    }
-    printf("\n");
-    
-    /* Output spectral density error */
-    
-    for (int i=0; i<=Ns; i++){
-        printf("%g",errs[i]);
-        if (i!=Ns){
-            printf(",");
-        }    
-    }
-    printf("\n");
-    
-    /* Output resolution estimate */
-   
-    /* Note that this resolution output uses the reciprocal estimate [Oldenburg]
-       and as such is not as accurate as the resolution estimate for the Backus-
-       Gilbert spread function.
-    */ 
-    for (int i=0; i<=Ns; i++){
-        printf("%g",widths[i]);
-        if (i!=Ns){
-            printf(",");
-        }
-    }
-    printf("\n");
 
     /* Output averaging coefficients */
 
