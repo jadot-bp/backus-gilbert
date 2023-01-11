@@ -2,7 +2,7 @@
 ## Authors
 
 - [@jadot-bp](https://www.github.com/jadot-bp)
-# backus-gilbert
+# backus-gilbert [hlt]
 
 This repository is for the Backus-Gilbert code as used by FASTSUM for spectral reconstruction.
 
@@ -19,6 +19,12 @@ Go to the project directory
 
 ```bash
   cd backus-gilbert
+```
+
+Switch to the `hlt` branch
+
+```bash
+  git checkout hlt
 ```
 
 Download and install the following dependencies: 
