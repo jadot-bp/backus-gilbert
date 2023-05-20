@@ -23,6 +23,7 @@ int prec = 128;          //MPFR precision
 
 void KFunc(double w, double tau, mpfr_t kfunc, mpfr_t factor);
 void WFunc(double w, double tau1, double tau2, mpfr_t wfunc, mpfr_t work);
+long double IntWFunc(double w, double wmin, double tau1, double tau2);
 
 int main(int argc, char *argv[]){
 
@@ -85,6 +86,8 @@ int main(int argc, char *argv[]){
     double lmax = 10.0;          //End of integration range
     double n = 25*Ns;            //Integral precision for composite-trapezium rule
 
+    int composite_integrate = 0; //Use composite integration where applicable
+
     double w0s[Ns+1];            //Frequency probe (proxy for position in energy space)
     double tau[t2-t1];           //Temporal position 
 
@@ -135,7 +138,7 @@ int main(int argc, char *argv[]){
 
         //Construct off-diagonal components
         for (int i=0; i<Nt; i++){
-            for (int j=i+1; j<Nt; j++){
+            for (int j=i+1; j<Nt; j++){ 
                 double tmp;
                 scanf("%lf",&tmp);
                 if (i >= t1 && i < t2){
@@ -169,42 +172,55 @@ int main(int argc, char *argv[]){
     for (int i=0; i<t2-t1; i++){       //Diagonal, equal-time elements
         
         mpfr_init2(KWeight[i][i],prec);
-        WFunc(lmin,tau[i],tau[i],wfunc,work);
-        mpfr_set(trapz,wfunc,MPFR_RNDF);
-        mpfr_div_d(trapz,trapz,2.0,MPFR_RNDF);
+       
+        if (composite_integrate == 1){ 
+            WFunc(lmin,tau[i],tau[i],wfunc,work);
+            mpfr_set(trapz,wfunc,MPFR_RNDF);
+            mpfr_div_d(trapz,trapz,2.0,MPFR_RNDF);
 
-        for (int k=1; k<n; k++){
-            WFunc(lmin+(lmax-lmin)*k/n,tau[i],tau[i],wfunc,work),
-            mpfr_add(trapz,trapz,wfunc,MPFR_RNDF);
+            for (int k=1; k<n; k++){
+                WFunc(lmin+(lmax-lmin)*k/n,tau[i],tau[i],wfunc,work),
+                mpfr_add(trapz,trapz,wfunc,MPFR_RNDF);
+            }
+            WFunc(lmax,tau[i],tau[i],wfunc,work);
+            mpfr_set(work,wfunc,MPFR_RNDF);
+            mpfr_div_d(work,work,2.0,MPFR_RNDF);
+            mpfr_add(trapz,trapz,work,MPFR_RNDF);
+
+            mpfr_mul_d(trapz,trapz,(lmax-lmin)/n,MPFR_RNDF);
+            mpfr_set(KWeight[i][i],trapz,MPFR_RNDF);
+        }else{
+            long double val = -IntWFunc(wmin,wmin,i,i);
+            mpfr_set_ld(KWeight[i][i],val,MPFR_RNDF);
         }
-        WFunc(lmax,tau[i],tau[i],wfunc,work);
-        mpfr_set(work,wfunc,MPFR_RNDF);
-        mpfr_div_d(work,work,2.0,MPFR_RNDF);
-        mpfr_add(trapz,trapz,work,MPFR_RNDF);
-
-        mpfr_mul_d(trapz,trapz,(lmax-lmin)/n,MPFR_RNDF);
-        mpfr_set(KWeight[i][i],trapz,MPFR_RNDF);
     }
     for (int i=0; i<t2-t1; i++){       //Off-diagonal, time-symmetric elements
         for (int j=i+1; j<t2-t1; j++){
                             
             mpfr_init2(KWeight[i][j],prec);
             mpfr_init2(KWeight[j][i],prec);
-            WFunc(lmin,tau[i],tau[j],wfunc,work);
-            mpfr_set(trapz,wfunc,MPFR_RNDF);
-            mpfr_div_d(trapz,trapz,2.0,MPFR_RNDF);
-            for (int k=1; k<n; k++){
-                WFunc(lmin+(lmax-lmin)*k/n,tau[i],tau[j],wfunc,work);
-                mpfr_add(trapz,trapz,wfunc,MPFR_RNDF);
-            }
-            WFunc(lmax,tau[i],tau[j],wfunc,work);
-            mpfr_set(work,wfunc,MPFR_RNDF);
-            mpfr_div_d(work,work,2.0,MPFR_RNDF);
-            mpfr_add(trapz,trapz,work,MPFR_RNDF);
-            mpfr_mul_d(trapz,trapz,(lmax-lmin)/n,MPFR_RNDF);
+            
+            if (composite_integrate == 1){ 
+                WFunc(lmin,tau[i],tau[j],wfunc,work);
+                mpfr_set(trapz,wfunc,MPFR_RNDF);
+                mpfr_div_d(trapz,trapz,2.0,MPFR_RNDF);
+                for (int k=1; k<n; k++){
+                    WFunc(lmin+(lmax-lmin)*k/n,tau[i],tau[j],wfunc,work);
+                    mpfr_add(trapz,trapz,wfunc,MPFR_RNDF);
+                }
+                WFunc(lmax,tau[i],tau[j],wfunc,work);
+                mpfr_set(work,wfunc,MPFR_RNDF);
+                mpfr_div_d(work,work,2.0,MPFR_RNDF);
+                mpfr_add(trapz,trapz,work,MPFR_RNDF);
+                mpfr_mul_d(trapz,trapz,(lmax-lmin)/n,MPFR_RNDF);
            
-            mpfr_set(KWeight[i][j],trapz,MPFR_RNDF);
-            mpfr_set(KWeight[j][i],trapz,MPFR_RNDF);
+                mpfr_set(KWeight[i][j],trapz,MPFR_RNDF);
+                mpfr_set(KWeight[j][i],trapz,MPFR_RNDF);
+            }else{        
+                long double val = -IntWFunc(wmin,wmin,j,i);
+                mpfr_set_ld(KWeight[i][j],val,MPFR_RNDF);
+                mpfr_set_ld(KWeight[j][i],val,MPFR_RNDF);
+            }
         }
     }
     
@@ -302,7 +318,7 @@ int main(int argc, char *argv[]){
             }
         }
         
-        if(g==1){
+        if(g>=1){
             for (int i=0; i<t2-t1; i++){
                 AvgCoeffs[w][i] = mpfr_get_ld(AvgCoeff[i],MPFR_RNDN);
             }
@@ -387,7 +403,7 @@ int main(int argc, char *argv[]){
 
     /* Output averaging coefficients */
 
-    if (g==1){
+    if (g>=1){
 
         FILE *avgc;
 
@@ -451,12 +467,13 @@ void KFunc(double w, double tau, mpfr_t kfunc, mpfr_t factor){
      */
 
     mpfr_set_d(factor,-w*tau,MPFR_RNDF);
-    mpfr_exp(factor,factor,MPFR_RNDF);      
+    mpfr_exp(factor,factor,MPFR_RNDF);
     if (scaling == 0.5){        //Multiply by sqrt(w), zeroed at wmin (s01 channel scaling)
         mpfr_mul_d(factor,factor,sqrt(w-wmin),MPFR_RNDF);
     }
     if (scaling == 1.5){        //Multiply by sqrt(w)**3, zeroed at wmin (p10 channel scaling)
         mpfr_mul_d(factor,factor,sqrt(pow(w-wmin,3)),MPFR_RNDF);
+
     }
     mpfr_set(kfunc,factor,MPFR_RNDF); 
 }
@@ -480,4 +497,16 @@ void WFunc(double w, double tau1, double tau2, mpfr_t wfunc, mpfr_t work){
     KFunc(w,tau2,work,work);
     mpfr_mul(wfunc,wfunc,work,MPFR_RNDF);
     //mpfr_mul_d(wfunc,wfunc,24.0,MPFR_RNDF);
+}
+
+long double IntWFunc(double w, double wmin, double tau1, double tau2){
+    /* Evaluates the integral of WFunc at w
+     */
+    if (scaling == 0.5){
+        return (long double) expl(-(tau1+tau2)*w) * ((tau1+tau2)*(wmin-w)-1) / powl(tau1+tau2,2);
+    }
+    if (scaling == 0){
+        return (long double) expl(-(tau1+tau2)*w) / (tau1+tau2);
+    }
+    return 1;
 }
