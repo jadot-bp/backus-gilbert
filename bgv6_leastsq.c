@@ -3,7 +3,6 @@
 #include <math.h>
 #include <time.h>
 #include <float.h>
-#include <omp.h>
 #include <gmp.h>
 #include <mpfr.h>
 
@@ -19,13 +18,13 @@ double wmax;
 float scaling;          
 int prec = 128;          //MPFR precision
 
-#define NCORES 4         //Number of cores for MPFR - currently unused
-
 void KFunc(double w, double tau, mpfr_t kfunc, mpfr_t factor);
 void WFunc(double w, double tau1, double tau2, mpfr_t wfunc, mpfr_t work);
 long double IntWFunc(double w, double wmin, double tau1, double tau2);
 
 int main(int argc, char *argv[]){
+
+    clock_t prog_start = clock();
 
     int Nt;                  //Number of time points in lattice (the temperature)
     int Ns;                  //Number of sample slices to calculate omega
@@ -59,7 +58,6 @@ int main(int argc, char *argv[]){
     */
 
     double alpha;                //Whitening parameter
-    double condition;            //Condition of the weight matrix
 
     if (argc == 2){              //Set default parameters
         wmin = -0.1;              //Scanning range
@@ -80,7 +78,7 @@ int main(int argc, char *argv[]){
         }
     }
 
-    scaling = 0.5;               //Kernel rescaling - 0.5 for S-wave and 1.5 for P-wave
+    scaling = 0;               //Kernel rescaling - 0.5 for S-wave and 1.5 for P-wave
 
     double lmin = wmin;          //Start of integration range
     double lmax = 10.0;          //End of integration range
@@ -98,9 +96,6 @@ int main(int argc, char *argv[]){
 
     double G[t2-t1];               //Correlator data
     double Cov[t2-t1][t2-t1];             //Correlator covariance
-    double rho[Ns+1];           //Spectral density estimate
-    double errs[Ns+1];          //Spectral density error
-    double widths[Ns+1];        //Spectral density frequency width/resolution
     
     /*
      * =======================================================================
@@ -190,7 +185,7 @@ int main(int argc, char *argv[]){
             mpfr_mul_d(trapz,trapz,(lmax-lmin)/n,MPFR_RNDF);
             mpfr_set(KWeight[i][i],trapz,MPFR_RNDF);
         }else{
-            long double val = -IntWFunc(wmin,wmin,i,i);
+            long double val = -IntWFunc(wmin,wmin,tau[i],tau[i]);
             mpfr_set_ld(KWeight[i][i],val,MPFR_RNDF);
         }
     }
@@ -217,7 +212,7 @@ int main(int argc, char *argv[]){
                 mpfr_set(KWeight[i][j],trapz,MPFR_RNDF);
                 mpfr_set(KWeight[j][i],trapz,MPFR_RNDF);
             }else{        
-                long double val = -IntWFunc(wmin,wmin,j,i);
+                long double val = -IntWFunc(wmin,wmin,tau[j],tau[i]);
                 mpfr_set_ld(KWeight[i][j],val,MPFR_RNDF);
                 mpfr_set_ld(KWeight[j][i],val,MPFR_RNDF);
             }
@@ -262,8 +257,6 @@ int main(int argc, char *argv[]){
     c_zcall(prec,t2-t1,*KCopy,*KInverse,S); //Pipe matrices to ZKCM interface
     /* End of C++ block */
 
-    condition = fabsl(mpfr_get_ld(S[0],MPFR_RNDN)/mpfr_get_ld(S[t2-t1-1],MPFR_RNDN));         //Save condition number
-
     mpfr_clear(temp);
     mpfr_clear(trapz);
     mpfr_clear(work);
@@ -271,11 +264,6 @@ int main(int argc, char *argv[]){
 
     /* Construct Dirichlet constraint vectors */
     {
-    omp_set_num_threads(NCORES);
-    //printf("NUM THREADS: %d\tNUM CORES: %d\n", omp_get_num_threads(),NCORES);
-
-    #pragma omp parallel shared(G,Cov,rho,errs,widths,AvgCoeffs,KWeight)
-    #pragma omp for
     for (int w=0; w<=Ns; w++){    
 
         //int tid = omp_get_thread_num();
@@ -324,30 +312,6 @@ int main(int argc, char *argv[]){
             }
         }
 
-        /* Calculate spectral estimate */
-
-        double rho_est = 0.0;
-        
-        for (int i=0; i<t2-t1; i++){
-            rho_est += mpfr_get_d(AvgCoeff[i],MPFR_RNDN)*G[i];
-        }
-
-        rho[w] = rho_est;
-
-        widths[w] = 1/w0;   //Oldenburg estimate of least-squares width
-        
-        /* Calculate error in spectral estimate */
-
-        double err = 0.0;
-        for (int i=0; i<t2-t1; i++){
-            double tmp = 0.0;
-            for (int j=0; j<t2-t1; j++){
-                tmp += Cov[i][j]*mpfr_get_d(AvgCoeff[j],MPFR_RNDN);
-            }
-            err += tmp*mpfr_get_d(AvgCoeff[i],MPFR_RNDN);
-        }
-        errs[w] = err;
-
         //Explicitly flush KConst for next loop
         for (int i=0; i<t2-t1; i++){
             mpfr_clear(KConst[i]);
@@ -363,44 +327,6 @@ int main(int argc, char *argv[]){
      * =======================================================================
     */
 
-    /* Output metadata */
-    
-    printf("%d;%d;%f;%f;%g;%d;%g\n",Nt,Ns,wmin,wmax,alpha,prec,condition);
-
-    /* Output spectral density estimate */
-    
-    for (int i=0; i<=Ns; i++){
-        printf("%g",rho[i]);
-        if (i!=Ns){
-            printf(",");
-        }    
-    }
-    printf("\n");
-    
-    /* Output spectral density error */
-    
-    for (int i=0; i<=Ns; i++){
-        printf("%g",errs[i]);
-        if (i!=Ns){
-            printf(",");
-        }    
-    }
-    printf("\n");
-    
-    /* Output resolution estimate */
-   
-    /* Note that this resolution output uses the reciprocal estimate [Oldenburg]
-       and as such is not as accurate as the resolution estimate for the Backus-
-       Gilbert spread function.
-    */ 
-    for (int i=0; i<=Ns; i++){
-        printf("%g",widths[i]);
-        if (i!=Ns){
-            printf(",");
-        }
-    }
-    printf("\n");
-
     /* Output averaging coefficients */
 
     if (g>=1){
@@ -412,7 +338,7 @@ int main(int argc, char *argv[]){
         /* Print Averaging Coefficients */
         for (int n=0; n<=Ns; n++){
             for(int i=0; i<t2-t1; i++){
-                fprintf(avgc,"%g",AvgCoeffs[n][i]);
+                fprintf(avgc,"%.16g",AvgCoeffs[n][i]);
                 if(i!=t2-t1-1){
                     fprintf(avgc,"%s",",");
                 }
@@ -421,14 +347,29 @@ int main(int argc, char *argv[]){
         }      
     }
     
-    /* Print Inverse of Kernel Weight Matrix */
     if (g==2){
+        /* Print Kernel Weight Matrix */
+
+        FILE *k;
+
+        k = fopen("out.k","w");        
+
+        for (int i=0; i<t2-t1; i++){
+            for(int j=0; j<t2-t1; j++){
+                fprintf(k,"%0.16Lf",mpfr_get_ld(KWeight[i][j],MPFR_RNDN));
+                if(j<t2-t1-1){
+                    fprintf(k,"%s",",");
+                }
+            }
+            fprintf(k,"%s","\n");
+        }      
+   
+        /* Print Inverse of Kernel Weight Matrix */
 
         FILE *kinv;
 
         kinv = fopen("out.kinv","w");        
 
-        /* Print Averaging Coefficients */
         for (int i=0; i<t2-t1; i++){
             for(int j=0; j<t2-t1; j++){
                 fprintf(kinv,"%0.16Lf",mpfr_get_ld(KInverse[i][j],MPFR_RNDN));
@@ -439,12 +380,21 @@ int main(int argc, char *argv[]){
             fprintf(kinv,"%s","\n");
         }      
     }
-    /* Output miscellaneous info to report file */
 
+    clock_t prog_end = clock();
+
+    /* Output miscellaneous info to report file */
+    fprintf(fptr,"%d;%d;%f;%f;%g;%d;%d;%d\n\n",Nt,Ns,wmin,wmax,alpha,t1,t2,prec);
     fprintf(fptr,"Error Mode:\t%d ([1] - Full, [0] - Partial)\n\n",emode);
-    fprintf(fptr,"Scaling:\tw^%f\n\n",scaling);
+    fprintf(fptr,"Scaling:\tw^%f\n",scaling);
+    if (composite_integrate == 1){
+        fprintf(fptr,"Integration:\tComposite\n\n");
+    }else{
+        fprintf(fptr,"Integration:\tAnalytic\n\n");
+    }
     fprintf(fptr,"Start (t1):\t%d\n",t1);
     fprintf(fptr,"End (t2):\t%d\n\n",t2);
+    fprintf(fptr,"Time Elapsed:\t%fs",(float)(prog_end-prog_start)/CLOCKS_PER_SEC);
 
     fclose(fptr);
 
@@ -496,7 +446,6 @@ void WFunc(double w, double tau1, double tau2, mpfr_t wfunc, mpfr_t work){
     KFunc(w,tau1,wfunc,work);
     KFunc(w,tau2,work,work);
     mpfr_mul(wfunc,wfunc,work,MPFR_RNDF);
-    //mpfr_mul_d(wfunc,wfunc,24.0,MPFR_RNDF);
 }
 
 long double IntWFunc(double w, double wmin, double tau1, double tau2){
@@ -506,7 +455,7 @@ long double IntWFunc(double w, double wmin, double tau1, double tau2){
         return (long double) expl(-(tau1+tau2)*w) * ((tau1+tau2)*(wmin-w)-1) / powl(tau1+tau2,2);
     }
     if (scaling == 0){
-        return (long double) expl(-(tau1+tau2)*w) / (tau1+tau2);
+        return (long double) -expl(-(tau1+tau2)*w) / (tau1+tau2);
     }
     return 1;
 }
