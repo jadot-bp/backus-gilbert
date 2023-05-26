@@ -17,10 +17,10 @@ LFLAGS	 = -lm
 
 ZLFLAGS = -L$(LIB_DIR) -linterface -lzcall -lstdc++ -lzkcm -lmpfr -lgmp -lgmpxx -fopenmp
 
-all: backus_lsq backus_spr 
+all: libzcall.so libinterface.so backus_lsq backus_spr 
 
-#libzcall.so: $(SOURCE_DIR)/zcall.cpp
-#$(CXX) -o $@ $(LIB_DIR)/$^ $(CXXFLAGS)
+lib%.so: $(SOURCE_DIR)/%.cpp
+	$(CXX) $< -o lib$* -I$(INCLUDE_DIR) $(ZLFLAGS) $(CXXFLAGS)
 
 backus_lsq: bgv6_leastsq.c
 	$(CC) -o $@ $^ $(CFLAGS) $(LFLAGS) $(ZLFLAGS)
