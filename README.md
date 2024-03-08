@@ -58,6 +58,6 @@ If libinterface.so is not in the listed path or the listed path is empty, link t
 
 ## Support
 
-For support, email Ben Page at 900727@swansea.ac.uk.
+For support, email Ben Page at benjaminpage.acer@gmail.com.
 
 
