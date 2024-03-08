@@ -4,8 +4,7 @@
 - [@jadot-bp](https://www.github.com/jadot-bp)
 # backus-gilbert [hlt]
 
-This repository is for the Backus-Gilbert code as used by FASTSUM for spectral reconstruction.
-
+This repository is for the Backus-Gilbert code as used by FASTSUM for spectral reconstruction. This branch allows the user to incorporate a HLT-style width minimisation by specifying the form of the target kernel, which in the original Backus-Gilbert mehtod is is the delta function.
 
 ## Installation (Linux)
 
@@ -80,6 +79,6 @@ If libinterface.so is not in the listed path or the listed path is empty, link t
 
 ## Support
 
-For support, email Ben Page at 900727@swansea.ac.uk.
+For support, email Ben Page at benjaminpage.acer@gmail.com.
 
 
