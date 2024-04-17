@@ -3,6 +3,7 @@
 #include <math.h>
 #include <time.h>
 #include <float.h>
+#include <omp.h>
 #include <gmp.h>
 #include <mpfr.h>
 
@@ -17,6 +18,8 @@ double wmin;
 double wmax;
 float scaling;          
 int prec = 128;          //MPFR precision
+
+#define NCORES 4
 
 void KFunc(double w, double tau, mpfr_t kfunc, mpfr_t factor);
 void WFunc(double w, double tau1, double tau2, mpfr_t wfunc, mpfr_t work);
@@ -50,7 +53,7 @@ int main(int argc, char *argv[]){
 
     int g = atoi(argv[1]);       //Debug mode for outputting averaging coefficients
     int emode = 1;               //Full error mode (1) or partial error mode (0) -- Full errors uses covariance matrix
-    int tikh = 0;                //Tikhonov whitening mode (1) or covariance whitening mode (0)
+    int tikh = 1;                //Tikhonov whitening mode (1) or covariance whitening mode (0)
 
     scanf("%d",&Nt);
     scanf("%d",&Ns);
@@ -231,7 +234,6 @@ int main(int argc, char *argv[]){
     else{ 
         for (int i=0; i<t2-t1; i++){
             for (int j=0; j<t2-t1; j++){
-                mpfr_mul_d(KWeight[i][j],KWeight[i][j],(1-alpha),MPFR_RNDF);
                 mpfr_add_d(KWeight[i][j],KWeight[i][j],alpha*Cov[i][j]/(G[0]*G[0]),MPFR_RNDF);
             }
         }
@@ -267,11 +269,10 @@ int main(int argc, char *argv[]){
 
     /* Construct Dirichlet constraint vectors */
     {
+    omp_set_num_threads(NCORES);
+    #pragma omp parallel shared(G,Cov,AvgCoeffs,KInverse)
+    #pragma omp for
     for (int w=0; w<=Ns; w++){    
-
-        //int tid = omp_get_thread_num();
-        //printf("ID: %d\n",tid);
-        //fflush(stdout);
 
         double w0 = w0s[w];
 
@@ -290,7 +291,7 @@ int main(int argc, char *argv[]){
 
             KFunc(w0,tau[i],temp,work);
             mpfr_set(KSamp[i],temp,MPFR_RNDF);
-            mpfr_mul_d(KSamp[i],KSamp[i],(1-alpha),MPFR_RNDF);
+            //mpfr_mul_d(KSamp[i],KSamp[i],(1-alpha),MPFR_RNDF);
         }
 
         /* Constructing constraint vector */
@@ -361,7 +362,7 @@ int main(int argc, char *argv[]){
                 AvgCoeffs[w][i] = mpfr_get_ld(AvgCoeff[i],MPFR_RNDN);
             }
         }
-
+        /*
         //Explicitly flush constraining vectors for next loop
         for (int i=0; i<t2-t1; i++){
             mpfr_clear(KConst[i]);
@@ -369,12 +370,14 @@ int main(int argc, char *argv[]){
             mpfr_clear(KInvC[i]);
             mpfr_clear(KInvD[i]);
         }
+        */
 
-        
+        mpfr_clear(work);
+        mpfr_clear(temp);
+
         mpfr_clear(normC);
         mpfr_clear(normD);
         mpfr_clear(normf);
-        mpfr_clear(work);
 
     }//End of w loop 
     }//End of pragma wrapper
