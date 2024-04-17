@@ -15,16 +15,12 @@ void main(){
     char buff[255];
     FILE *fp;
     char *strptr;
-    double result;
             
     int Nt;
-    char channel[8];
     int ch_no;
     
     scanf("%d",&Nt);
-    scanf("%s",&channel);
-
-    ch_no = 2*(int)(channel[1]-'0') + (int)(channel[2]-'0');    //Binary counting for channel selection
+    scanf("%d",&ch_no);
 
     int nmin = ch_no*(Nt+1);    //Start of correlator
     int nmax = nmin+Nt;         //End of correlator

@@ -1,30 +1,42 @@
-SHELL = /bin/sh
+SHELL := bash
 
 INCLUDE_DIR := include
 LIB_DIR := lib
 SOURCE_DIR := src
 BUILD_DIR := build
 
-SOURCES	= $(wildcard $(SOURCE_DIR)/*.c)
+SOURCES=$(wildcard $(SOURCE_DIR)/*.c)
+UTILS=$(SOURCES:$(SOURCE_DIR)/%.c=%)
 
-CC	 = gcc
+CC	= gcc
 CXX = g++
 
-CFLAGS	 = -I$(INCLUDE_DIR) -Wall -O3 -std=gnu99
-CXXFLAGS = -fPIC -shared
+CFLAGS	 = -I$(INCLUDE_DIR) -L$(LIB_DIR) -Wall  -std=gnu99
+CXXFLAGS = -I$(INCLUDE_DIR) -L$(LIB_DIR) -fPIC -shared
 
 LFLAGS	 = -lm 
 
-ZLFLAGS = -L$(LIB_DIR) -linterface -lzcall -lstdc++ -lzkcm -lmpfr -lgmp -lgmpxx -fopenmp
+ZLFLAGS = -lstdc++ -lzkcm -lmpfr -lgmp -lgmpxx -fopenmp
 
-all: libzcall.so libinterface.so backus_lsq backus_spr 
+all: libzcall.so libinterface.so backus_hmr $(UTILS)
 
-lib%.so: $(SOURCE_DIR)/%.cpp
-	$(CXX) $< -o lib$* -I$(INCLUDE_DIR) $(ZLFLAGS) $(CXXFLAGS)
+# Compile libraries
 
-backus_lsq: bgv6_leastsq.c
-	$(CC) -o $@ $^ $(CFLAGS) $(LFLAGS) $(ZLFLAGS)
+libzcall.so: zcall.cpp
+	$(CXX) $(SOURCE_DIR)/$< $(ZLFLAGS) -o $(LIB_DIR)/$@ $(CXXFLAGS)
 
-backus_spr: bgv6_spread.c
-	$(CC) -o $@ $^ $(CFLAGS) $(LFLAGS) $(ZLFLAGS)
+libinterface.so: interface.cpp
+	$(CXX) $(SOURCE_DIR)/$< $(ZLFLAGS) -o $(LIB_DIR)/$@ $(CXXFLAGS) -lzcall
+
+# Compile utility scripts
+
+%: $(SOURCE_DIR)/%.c
+	$(CC) $^ -o $@ $(LFLAGS)
+
+# Compile main script
+
+backus_hmr: bgv6_hmr.c libinterface.so libzcall.so
+	$(CC) -o $@ $< $(CFLAGS) -lzcall -linterface $(ZLFLAGS) $(LFLAGS)
+
+
 
