@@ -22,11 +22,11 @@ all: libzcall.so libinterface.so backus_hmr $(UTILS)
 
 # Compile libraries
 
-libzcall.so: zcall.cpp
-	$(CXX) $(SOURCE_DIR)/$< $(ZLFLAGS) -o $(LIB_DIR)/$@ $(CXXFLAGS)
+libzcall.so: $(SOURCE_DIR)/zcall.cpp
+	$(CXX) $< $(ZLFLAGS) -o $(LIB_DIR)/$@ $(CXXFLAGS)
 
-libinterface.so: interface.cpp
-	$(CXX) $(SOURCE_DIR)/$< $(ZLFLAGS) -o $(LIB_DIR)/$@ $(CXXFLAGS) -lzcall
+libinterface.so: $(SOURCE_DIR)/interface.cpp
+	$(CXX) $< $(ZLFLAGS) -o $(LIB_DIR)/$@ $(CXXFLAGS) -lzcall
 
 # Compile utility scripts
 
