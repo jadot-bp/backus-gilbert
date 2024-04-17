@@ -6,7 +6,7 @@
 #       inversion script.
 #
 
-gen2l_location="../gen-2l"      #Location of the gen-2l dataset
+gen2l_location="../../gen-2l"      #Location of the gen-2l dataset
 
 outfile="output.dat"    #File to output correlator information
 tmpfile="tmp_$RANDOM"   #Temporary arithmetic file (will be destroyed on exit)
@@ -15,34 +15,53 @@ tmpfile="tmp_$RANDOM"   #Temporary arithmetic file (will be destroyed on exit)
 > "$tmpfile"
 > "seed"
 
+channel=$1 #Meson channel (see Don's nomenclature - s01 = Upsilon, p10 = Chi_b1)
 
 # Check for cmd line args
-if [ "$#" -eq 3 ]
+if [ "$#" -eq 4 ]
 then
-    Nt=$1       #Number of Euclidean time points (N_tau)
-    Ns=$2       #Number of sampling slices (=Ns+1 points in omega space)
-    Nb=$3       #Size of bootstrap sample
+    Nt=$2       #Number of Euclidean time points (N_tau)
+    Ns=$3       #Number of sampling slices (=Ns+1 points in omega space)
+    Nb=$4       #Size of bootstrap sample
 else
     echo "Defaulting to presets..."
     Nt=128      
-    Ns=500      
+    Ns=100      
     Nb=-1       #-1 designates full set.
 fi
 
-channel="s11"           #Meson channel (see Don's nomenclature - s01 = Upsilon, p10 = Chi_b1)
 gentype="covgen"              #covgen version ("covgen" or "covgend")
 
 echo "Using $gentype."
 echo "Channel: $channel"
 
-datapath="$gen2l_location/32x$Nt/${channel:0:1}onia*"
+if [ "${channel:0:1}" = "s" ]
+then
+    suffix="s"
+    channels=("spp_0" "spp_i" "sxx_0" "sxx_i")
+else
+    suffix="p"
+    channels=("pp_A" "pp_0" "pp_i" "pp_ij" "xx_A" "xx_0" "xx_i" "xx_ij")
+fi
+
+datapath="$gen2l_location/32x$Nt/${suffix}onia*"
 
 echo "Collecting data..."
+
+# Calculate channel number ch_no
+
+for ch in "${!channels[@]}"; do
+    if [[ "${channels[$ch]}" = "$channel" ]]; then
+        ch_no=$ch
+    fi
+done
+
+echo "Channel number:" $ch_no
 
 confcount=0
 for confpath in $datapath
 do
-    echo -e "$Nt\n$channel\n$confpath\n" | ./chread >> "$tmpfile"
+    echo -e "$Nt\n$ch_no\n$confpath\n" | ./chread >> "$tmpfile"
     confcount=$((confcount+1))
 done
 
