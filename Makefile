@@ -41,7 +41,3 @@ backus_lsq: bgv6_leastsq.c libinterface.so libzcall.so
 
 backus_spr: bgv6_spread.c libinterface.so libzcall.so
 	$(CC) -o $@ $< $(CFLAGS) -lzcall -linterface $(ZLFLAGS) $(LFLAGS)
-
-all:
-	export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:lib/"
-	@echo $LD_LIBRARY_PATH
