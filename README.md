@@ -2,9 +2,9 @@
 ## Authors
 
 - [@jadot-bp](https://www.github.com/jadot-bp)
-# backus-gilbert
+# backus-gilbert [hmr]
 
-This repository is for the Backus-Gilbert code as used by FASTSUM for spectral reconstruction.
+This repository is for the Backus-Gilbert code as used by FASTSUM for spectral reconstruction. This branch is for the HMR modified form of the original Backus-Gilbert method. This corresponds to the least-squares component of the backus-gilbert branch with added unit area constraint for the averaging functions.
 
 
 ## Installation (Linux)
@@ -58,6 +58,6 @@ If libinterface.so is not in the listed path or the listed path is empty, link t
 
 ## Support
 
-For support, email Ben Page at 900727@swansea.ac.uk.
+For support, email Ben Page at benjaminpage.acer@gmail.com.
 
 
