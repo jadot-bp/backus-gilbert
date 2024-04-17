@@ -3,7 +3,6 @@ SHELL := bash
 INCLUDE_DIR := include
 LIB_DIR := lib
 SOURCE_DIR := src
-BUILD_DIR := build
 
 SOURCES=$(wildcard $(SOURCE_DIR)/*.c)
 UTILS=$(SOURCES:$(SOURCE_DIR)/%.c=%)
@@ -23,9 +22,11 @@ all: libzcall.so libinterface.so backus_hmr $(UTILS)
 # Compile libraries
 
 libzcall.so: $(SOURCE_DIR)/zcall.cpp
+	mkdir -p $(LIB_DIR)
 	$(CXX) $< $(ZLFLAGS) -o $(LIB_DIR)/$@ $(CXXFLAGS)
 
 libinterface.so: $(SOURCE_DIR)/interface.cpp
+	mkdir -p $(LIB_DIR)
 	$(CXX) $< $(ZLFLAGS) -o $(LIB_DIR)/$@ $(CXXFLAGS) -lzcall
 
 # Compile utility scripts
