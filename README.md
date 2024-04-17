@@ -27,11 +27,10 @@ Download and install the following dependencies:
 * MPFR: https://www.mpfr.org/ 
 * ZKCM: https://sourceforge.net/projects/zkcm/
 
-Compile the base scripts along with the ZKCM connector
+Compile the base scripts along with the ZKCM connector using the Makefile
 
 ```bash
-  bash compile.sh
-  bash zcompile.sh
+  make
 ```
 Done!
 
@@ -40,7 +39,7 @@ Done!
 If you encounter the error
 
 ```bash
-  ./backus_lsq: error while loading shared libraries: libinterface.so: cannot open shared object file: No such file or directory
+  ./backus: error while loading shared libraries: libinterface.so: cannot open shared object file: No such file or directory
 ```
 
 then you have not correctly set the library path. Check to see if `libinterface.so` is in the linked library path
@@ -53,7 +52,7 @@ If libinterface.so is not in the listed path or the listed path is empty, link t
 
 ```bash
   cd backus-gilbert
-  export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD"
+  export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:lib/"
 ```
 
 ## Support
