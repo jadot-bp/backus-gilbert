@@ -1,4 +1,6 @@
 
+# Note: This branch is now deprecated.
+
 ## Authors
 
 - [@jadot-bp](https://www.github.com/jadot-bp)
